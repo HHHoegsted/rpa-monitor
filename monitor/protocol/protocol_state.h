@@ -1,0 +1,12 @@
+#pragma once
+
+enum class ProtocolState
+{
+    WAITING_FOR_INITIAL_MESSAGE,
+    WAITING_FOR_CPU,
+    WAITING_FOR_RAM,
+    WAITING_FOR_DISK_FREE,
+    WAITING_FOR_ROBOT_RUNNING,
+    WAITING_FOR_DONE,
+    COMPLETE
+};
