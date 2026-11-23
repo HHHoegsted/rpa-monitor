@@ -33,4 +33,12 @@ std::optional<double> get_ram_percent();
  */
 std::optional<double> get_disk_free_percent();
 
+/**
+ * Get the time elapsed since Windows started.
+ *
+ * Returns:
+ *     System uptime in whole seconds.
+ */
+unsigned long long get_uptime_seconds();
+
 }

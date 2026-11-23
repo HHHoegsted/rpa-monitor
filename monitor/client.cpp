@@ -276,6 +276,7 @@ std::optional<std::string> exchange_message(
     return response;
 }
 
+
 /**
  * Create the protocol message requested by the server.
  *
@@ -283,8 +284,8 @@ std::optional<std::string> exchange_message(
  *     command: Protocol command requested by the server.
  *
  * Returns:
- *     The complete protocol message when the requested value can be obtained,
- *     otherwise no value.
+ *     The complete protocol message when the requested value can be
+ *     obtained, otherwise no value.
  */
 std::optional<std::string> create_requested_message(
     const std::string& command
@@ -372,6 +373,20 @@ std::optional<std::string> create_requested_message(
             + "\n";
     }
 
+    if (command == "UPTIME")
+    {
+        unsigned long long uptime_seconds =
+            system_metrics::get_uptime_seconds();
+
+        std::cout << "Uptime: "
+                  << uptime_seconds
+                  << " seconds\n";
+
+        return "UPTIME "
+            + std::to_string(uptime_seconds)
+            + "\n";
+    }
+
     if (command == "DONE")
     {
         return "DONE\n";
@@ -384,6 +399,7 @@ std::optional<std::string> create_requested_message(
 
     return std::nullopt;
 }
+
 
 
 /**

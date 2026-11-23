@@ -1,5 +1,6 @@
 #include "protocol_state_machine.h"
 
+
 /**
  * Determine the next protocol state for a command.
  *
@@ -58,6 +59,14 @@ std::optional<ProtocolState> ProtocolStateMachine::next_state(
         case ProtocolState::WAITING_FOR_ROBOT_RUNNING:
             if (command == "ROBOT_RUNNING")
             {
+                return ProtocolState::WAITING_FOR_UPTIME;
+            }
+
+            return std::nullopt;
+
+        case ProtocolState::WAITING_FOR_UPTIME:
+            if (command == "UPTIME")
+            {
                 return ProtocolState::WAITING_FOR_DONE;
             }
 
@@ -77,6 +86,8 @@ std::optional<ProtocolState> ProtocolStateMachine::next_state(
 
     return std::nullopt;
 }
+
+
 
 /**
  * Get the protocol command expected for a state.
@@ -107,6 +118,9 @@ std::string ProtocolStateMachine::expected_command(
 
         case ProtocolState::WAITING_FOR_ROBOT_RUNNING:
             return "ROBOT_RUNNING";
+
+        case ProtocolState::WAITING_FOR_UPTIME:
+            return "UPTIME";
 
         case ProtocolState::WAITING_FOR_DONE:
             return "DONE";

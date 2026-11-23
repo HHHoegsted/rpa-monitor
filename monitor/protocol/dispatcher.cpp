@@ -14,6 +14,7 @@ ProtocolDispatcher::ProtocolDispatcher()
     handlers_.emplace("RAM", handle_ram);
     handlers_.emplace("DISK_FREE", handle_disk_free);
     handlers_.emplace("ROBOT_RUNNING", handle_robot_running);
+    handlers_.emplace("UPTIME", handle_uptime);
     handlers_.emplace("DONE", handle_done);
     handlers_.emplace("BANANA", handle_banana);
 }
@@ -287,6 +288,56 @@ std::string ProtocolDispatcher::handle_robot_running(
     }
 
     return "ERROR invalid ROBOT_RUNNING value";
+}
+
+
+/**
+ * Handle an UPTIME protocol message.
+ *
+ * Args:
+ *     message: Parsed protocol message containing uptime in seconds.
+ *     report: Machine report to update.
+ *
+ * Returns:
+ *     OK when uptime is accepted, otherwise an error response.
+ */
+std::string ProtocolDispatcher::handle_uptime(
+    const ProtocolMessage& message,
+    MachineReport& report
+)
+{
+    const std::string& payload = message.payload();
+
+    if (payload.empty())
+    {
+        return "ERROR missing uptime seconds";
+    }
+
+    for (char character : payload)
+    {
+        if (character < '0' || character > '9')
+        {
+            return "ERROR invalid uptime seconds";
+        }
+    }
+
+    try
+    {
+        unsigned long long uptime_seconds =
+            std::stoull(payload);
+
+        report.set_uptime_seconds(uptime_seconds);
+    }
+    catch (const std::invalid_argument&)
+    {
+        return "ERROR invalid uptime seconds";
+    }
+    catch (const std::out_of_range&)
+    {
+        return "ERROR uptime seconds out of range";
+    }
+
+    return "OK";
 }
 
 /**

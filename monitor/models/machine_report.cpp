@@ -16,6 +16,7 @@ MachineReport MachineReport::create_diagnostic()
     report.ram_percent_ = 42.0;
     report.disk_free_percent_ = 42.0;
     report.robot_running_ = false;
+    report.uptime_seconds_ = 1000ULL;
 
     return report;
 }
@@ -130,6 +131,20 @@ void MachineReport::set_robot_running(bool robot_running)
 
 
 /**
+ * Set the reported system uptime.
+ *
+ * Args:
+ *     uptime_seconds: Time elapsed since Windows started, in seconds.
+ */
+void MachineReport::set_uptime_seconds(
+    unsigned long long uptime_seconds
+)
+{
+    uptime_seconds_ = uptime_seconds;
+}
+
+
+/**
  * Check whether all required report values have been provided.
  *
  * Returns:
@@ -141,7 +156,8 @@ bool MachineReport::is_complete() const
         && cpu_percent_.has_value()
         && ram_percent_.has_value()
         && disk_free_percent_.has_value()
-        && robot_running_.has_value();
+        && robot_running_.has_value()
+        && uptime_seconds_.has_value();
 }
 
 

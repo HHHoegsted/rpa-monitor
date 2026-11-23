@@ -73,6 +73,8 @@ public:
      */
     void set_robot_running(bool robot_running);
 
+    void set_uptime_seconds(unsigned long long uptime_seconds);
+
     /**
      * Check whether all required report values have been provided.
      *
@@ -108,4 +110,5 @@ private:
     std::optional<double> ram_percent_;
     std::optional<double> disk_free_percent_;
     std::optional<bool> robot_running_;
+    std::optional<unsigned long long> uptime_seconds_;
 };

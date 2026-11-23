@@ -215,33 +215,57 @@ ReceiveResult receive_message(
  * Returns:
  *     True if sending succeeds, otherwise false.
  */
+
+/**
+ * Send one complete newline-terminated response through a client socket.
+ *
+ * Args:
+ *     client_socket: Connected socket used to send the response.
+ *     response: Protocol response to send.
+ *
+ * Returns:
+ *     True if every byte was sent successfully, otherwise false.
+ */
 bool send_response(
     Socket& client_socket,
     const std::string& response
 )
 {
-    std::string framed_response = response + "\n";
+    const std::string framed_response = response + "\n";
+    std::size_t total_sent = 0;
 
-    int sent_bytes = send(
-        client_socket.get(),
-        framed_response.c_str(),
-        static_cast<int>(framed_response.size()),
-        0
-    );
-
-    if (sent_bytes == SOCKET_ERROR)
+    while (total_sent < framed_response.size())
     {
-        std::cerr << "send() failed with error: "
-                  << WSAGetLastError()
-                  << '\n';
+        int sent_bytes = send(
+            client_socket.get(),
+            framed_response.c_str() + total_sent,
+            static_cast<int>(framed_response.size() - total_sent),
+            0
+        );
 
-        return false;
+        if (sent_bytes == SOCKET_ERROR)
+        {
+            std::cerr << "send() failed with error: "
+                      << WSAGetLastError()
+                      << '\n';
+
+            return false;
+        }
+
+        if (sent_bytes == 0)
+        {
+            std::cerr << "send() made no progress.\n";
+            return false;
+        }
+
+        total_sent += static_cast<std::size_t>(sent_bytes);
     }
 
     std::cout << "Sent response: " << response << '\n';
 
     return true;
 }
+
 
 
 /**

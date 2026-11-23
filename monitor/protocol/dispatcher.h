@@ -118,6 +118,21 @@ private:
     );
 
     /**
+     * Handle an UPTIME protocol message.
+     *
+     * Args:
+     *     message: Parsed protocol message containing uptime in seconds.
+     *     report: Machine report to update.
+     *
+     * Returns:
+     *     Protocol response indicating whether the uptime was accepted.
+     */
+    static std::string handle_uptime(
+        const ProtocolMessage& message,
+        MachineReport& report
+    );
+
+    /**
      * Handle a DONE command.
      *
      * Args:
