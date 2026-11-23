@@ -1,3 +1,5 @@
 build/
 .env
 vcpkg_installed/
+api/.venv/
+__pycache__/
