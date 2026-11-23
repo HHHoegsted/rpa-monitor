@@ -1,0 +1,16 @@
+
+CREATE TABLE machines (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    hostname TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE measurements (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    machine_id BIGINT NOT NULL REFERENCES machines(id),
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    cpu_percent DOUBLE PRECISION NOT NULL,
+    ram_percent DOUBLE PRECISION NOT NULL,
+    disk_free_percent DOUBLE PRECISION NOT NULL,
+    robot_running BOOLEAN NOT NULL,
+    uptime_seconds BIGINT NOT NULL
+);

@@ -1,0 +1,12 @@
+
+{
+    "dependencies": [
+        "libpqxx"
+    ],
+    "overrides": [
+        {
+            "name": "libpqxx",
+            "version": "7.10.5"
+        }
+    ]
+}

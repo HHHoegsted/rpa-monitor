@@ -9,6 +9,9 @@
 #include "protocol/dispatcher.h"
 #include "protocol/protocol_state.h"
 #include "models/machine_report.h"
+#include "database/report_repository.h"
+#include <pqxx/pqxx>
+#include <exception>
 
 
 #pragma comment(lib, "Ws2_32.lib")
@@ -268,15 +271,20 @@ bool send_response(
 
 
 
+
 /**
- * Handles one connected client conversation.
+ * Handle one connected client conversation.
+ *
+ * Persists a complete report before acknowledging successful
+ * completion of the monitoring protocol.
  *
  * Args:
- *     client_socket: The socket connected to the client.
- *     dispatcher: Protocol dispatcher used to handle received messages.
+ *     client_socket: Socket connected to the client.
+ *     dispatcher: Dispatcher responsible for protocol validation.
  *
  * Returns:
- *     True if the conversation ended cleanly, otherwise false.
+ *     True if the conversation completed successfully,
+ *     otherwise false.
  */
 bool handle_client(
     Socket& client_socket,
@@ -324,12 +332,69 @@ bool handle_client(
             state
         );
 
+        if (
+            protocol_message.command() == "DONE"
+            && response == "OK COMPLETE"
+        )
+        {
+            if (!report.is_complete() || !save_machine_report(report))
+            {
+                send_response(
+                    client_socket,
+                    "ERROR database persistence failed"
+                );
+
+                return false;
+            }
+
+            std::cout << "Saved machine report: "
+                      << report.hostname()
+                      << '\n';
+        }
+
         if (!send_response(client_socket, response))
         {
             return false;
         }
     }
 }
+
+
+
+
+/**
+ * Verify that the PostgreSQL database is accessible.
+ *
+ * Returns:
+ *     True if the connection and test query succeed,
+ *     otherwise false.
+ */
+bool verify_database_connection()
+{
+    try
+    {
+        pqxx::connection connection;
+
+        pqxx::work transaction{connection};
+
+        pqxx::result result = transaction.exec("SELECT 1");
+
+        transaction.commit();
+
+        return result.size() == 1
+            && result[0][0].as<int>() == 1;
+    }
+    catch (const std::exception& error)
+    {
+        std::cerr << "Database connection failed: "
+                  << error.what()
+                  << '\n';
+
+        return false;
+    }
+}
+
+
 
 /**
  * Starts the server and handles clients sequentially.
@@ -387,17 +452,24 @@ int run_server()
 }
 
 
+
 /**
- * Initialize networking and run the server.
+ * Initialize networking, verify database connectivity,
+ * and start the monitoring server.
  *
  * Returns:
- *     0 on success, otherwise 1.
+ *     0 on successful termination, otherwise 1.
  */
 int main()
 {
     WinsockSession winsock;
 
     if (!winsock.is_valid())
+    {
+        return 1;
+    }
+
+    if (!verify_database_connection())
     {
         return 1;
     }

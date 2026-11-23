@@ -1,8 +1,8 @@
+
 #pragma once
 
 #include <optional>
 #include <string>
-
 
 /**
  * Represents a machine health report collected from one client.
@@ -21,9 +21,6 @@ public:
     /**
      * Set the hostname reported by the client.
      *
-     * The reserved diagnostic hostname DEEP-THOUGHT cannot be assigned
-     * through this method.
-     *
      * Args:
      *     hostname: Hostname of the reporting machine.
      *
@@ -39,7 +36,7 @@ public:
      *     cpu_percent: CPU usage from 0.0 through 100.0.
      *
      * Returns:
-     *     True if the value was accepted, otherwise false.
+     *     True if accepted, otherwise false.
      */
     bool set_cpu_percent(double cpu_percent);
 
@@ -50,7 +47,7 @@ public:
      *     ram_percent: RAM usage from 0.0 through 100.0.
      *
      * Returns:
-     *     True if the value was accepted, otherwise false.
+     *     True if accepted, otherwise false.
      */
     bool set_ram_percent(double ram_percent);
 
@@ -61,7 +58,7 @@ public:
      *     disk_free_percent: Free disk space from 0.0 through 100.0.
      *
      * Returns:
-     *     True if the value was accepted, otherwise false.
+     *     True if accepted, otherwise false.
      */
     bool set_disk_free_percent(double disk_free_percent);
 
@@ -69,14 +66,86 @@ public:
      * Set whether a robot is currently running.
      *
      * Args:
-     *     robot_running: True when a robot is currently running.
+     *     robot_running: True when a robot is running.
      */
     void set_robot_running(bool robot_running);
 
+    /**
+     * Set the reported system uptime.
+     *
+     * Args:
+     *     uptime_seconds: System uptime in seconds.
+     */
     void set_uptime_seconds(unsigned long long uptime_seconds);
 
     /**
-     * Check whether all required report values have been provided.
+     * Get the hostname of the reporting machine.
+     *
+     * Requires:
+     *     The report must be complete.
+     *
+     * Returns:
+     *     A constant reference to the hostname.
+     */
+    const std::string& hostname() const;
+
+    /**
+     * Get the CPU usage percentage.
+     *
+     * Requires:
+     *     The report must be complete.
+     *
+     * Returns:
+     *     CPU usage percentage.
+     */
+    double cpu_percent() const;
+
+    /**
+     * Get the RAM usage percentage.
+     *
+     * Requires:
+     *     The report must be complete.
+     *
+     * Returns:
+     *     RAM usage percentage.
+     */
+    double ram_percent() const;
+
+    /**
+     * Get the free disk space percentage.
+     *
+     * Requires:
+     *     The report must be complete.
+     *
+     * Returns:
+     *     Free disk space percentage.
+     */
+    double disk_free_percent() const;
+
+    /**
+     * Get whether a robot is running.
+     *
+     * Requires:
+     *     The report must be complete.
+     *
+     * Returns:
+     *     True if a robot is running, otherwise false.
+     */
+    bool robot_running() const;
+
+    /**
+     * Get the system uptime.
+     *
+     * Requires:
+     *     The report must be complete.
+     *
+     * Returns:
+     *     System uptime in seconds.
+     */
+    unsigned long long uptime_seconds() const;
+
+    /**
+     * Check whether all required values have been provided.
      *
      * Returns:
      *     True when the report contains all required values.
@@ -93,13 +162,13 @@ public:
 
 private:
     /**
-     * Check whether a percentage value is within the allowed range.
+     * Check whether a percentage is within the allowed range.
      *
      * Args:
      *     value: Percentage value to validate.
      *
      * Returns:
-     *     True when the value is between 0.0 and 100.0 inclusive.
+     *     True when between 0.0 and 100.0 inclusive.
      */
     static bool is_valid_percentage(double value);
 
