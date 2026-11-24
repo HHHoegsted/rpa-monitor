@@ -1,500 +1,206 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
 #include <iostream>
 #include <string>
-#include <winsock2.h>
+#include <optional>
+#include <sstream>
+#include <locale>
+#include <iomanip>
 
-#include "network/socket.h"
-#include "network/winsock_session.h"
 #include "metrics/system_metrics.h"
 #include "metrics/robot_status.h"
-
-
-#pragma comment(lib, "Ws2_32.lib")
+#include "mqtt/publisher.h"
 
 
 /**
- * Initialize the Windows Sockets API.
+ * Retrieve an environment variable.
+ *
+ * Args:
+ *     name: Name of the environment variable.
  *
  * Returns:
- *     True if Winsock was initialized successfully, otherwise false.
+ *     The configured value, or an empty string if unavailable.
  */
-bool initialize_winsock()
+std::string get_environment_variable(const char* name)
 {
-    WSADATA winsock_data;
+    const DWORD required_size =
+        GetEnvironmentVariableA(name, nullptr, 0);
 
-    int startup_result = WSAStartup(MAKEWORD(2, 2), &winsock_data);
-
-    if (startup_result != 0)
+    if (required_size == 0)
     {
-        std::cerr << "WSAStartup failed with error: "
-                  << startup_result
-                  << '\n';
-
-        return false;
+        return "";
     }
 
-    return true;
+    std::string value(required_size, '\0');
+
+    const DWORD copied_size = GetEnvironmentVariableA(
+        name,
+        value.data(),
+        required_size
+    );
+
+    if (copied_size == 0 || copied_size >= required_size)
+    {
+        return "";
+    }
+
+    value.resize(copied_size);
+
+    return value;
 }
 
 
 /**
- * Get the hostname of the local machine.
+ * Retrieve the DNS hostname of the local machine.
  *
  * Returns:
- *     The local hostname, or an empty string if retrieval fails.
+ *     The hostname, or an empty string if retrieval fails.
  */
 std::string get_hostname()
 {
     char hostname[256]{};
+    DWORD size = sizeof(hostname);
 
-    int result = gethostname(
+    if (!GetComputerNameExA(
+        ComputerNameDnsHostname,
         hostname,
-        static_cast<int>(sizeof(hostname))
-    );
-
-    if (result == SOCKET_ERROR)
+        &size
+    ))
     {
-        std::cerr << "gethostname() failed with error: "
-                  << WSAGetLastError()
-                  << '\n';
+        std::cerr << "Could not retrieve hostname.\n";
 
         return "";
     }
 
-    return hostname;
+    return std::string(hostname, size);
 }
 
 
 /**
- * Create an IPv4 TCP socket.
+ * Load MQTT connection settings from environment variables.
  *
  * Returns:
- *     A Socket object owning the created socket handle.
+ *     MQTT connection settings.
  */
-Socket create_client_socket()
+mqtt::ConnectionSettings load_connection_settings()
 {
-    SOCKET socket_handle = socket(
-        AF_INET,
-        SOCK_STREAM,
-        IPPROTO_TCP
-    );
+    mqtt::ConnectionSettings settings;
 
-    if (socket_handle == INVALID_SOCKET)
-    {
-        std::cerr << "socket() failed with error: "
-                  << WSAGetLastError()
-                  << '\n';
-    }
+    settings.host =
+        get_environment_variable("MQTT_HOST");
 
-    return Socket(socket_handle);
+    settings.username =
+        get_environment_variable("MQTT_PUBLISHER_USERNAME");
+
+    settings.password =
+        get_environment_variable("MQTT_PUBLISHER_PASSWORD");
+
+    settings.ca_file =
+        get_environment_variable("MQTT_CA_FILE");
+
+    settings.port = 8883;
+
+    return settings;
 }
 
 
 /**
- * Connect a socket to the local test server.
+ * Collect machine measurements and construct a JSON payload.
  *
  * Args:
- *     client_socket: Socket used for the connection.
+ *     hostname: Hostname of the monitored machine.
  *
  * Returns:
- *     True if the connection succeeds, otherwise false.
+ *     A JSON measurement payload, or no value if collection fails.
  */
-bool connect_to_server(Socket& client_socket)
-{
-    sockaddr_in server_address{};
-
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    server_address.sin_port = htons(5000);
-
-    int connect_result = connect(
-        client_socket.get(),
-        reinterpret_cast<sockaddr*>(&server_address),
-        sizeof(server_address)
-    );
-
-    if (connect_result == SOCKET_ERROR)
-    {
-        std::cerr << "connect() failed with error: "
-                  << WSAGetLastError()
-                  << '\n';
-
-        return false;
-    }
-
-    return true;
-}
-
-
-/**
- * Send a complete message through a connected socket.
- *
- * Args:
- *     client_socket: Connected socket used to send the message.
- *     message: Message to send.
- *
- * Returns:
- *     True if the send operation succeeds, otherwise false.
- */
-/**
- * Send a complete message through a connected socket.
- *
- * Args:
- *     client_socket: Connected socket used to send the message.
- *     message: Message to send.
- *
- * Returns:
- *     True if the send operation succeeds, otherwise false.
- */
-bool send_message(
-    Socket& client_socket,
-    const std::string& message
+std::optional<std::string> collect_measurements(
+    const std::string& hostname
 )
 {
-    std::size_t total_sent = 0;
-
-    while (total_sent < message.size())
+    if (
+        hostname.empty() ||
+        hostname.find_first_not_of(
+            "abcdefghijklmnopqrstuvwxyz"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "0123456789-_."
+        ) != std::string::npos
+    )
     {
-        int sent_bytes = send(
-            client_socket.get(),
-            message.c_str() + total_sent,
-            static_cast<int>(message.size() - total_sent),
-            0
-        );
+        std::cerr << "Invalid machine hostname.\n";
 
-        if (sent_bytes == SOCKET_ERROR)
-        {
-            std::cerr << "send() failed with error: "
-                      << WSAGetLastError()
-                      << '\n';
-
-            return false;
-        }
-
-        if (sent_bytes == 0)
-        {
-            std::cerr << "send() made no progress.\n";
-            return false;
-        }
-
-        total_sent += static_cast<std::size_t>(sent_bytes);
-    }
-
-    std::cout << "Sent " << total_sent << " bytes.\n";
-
-    return true;
-}
-
-
-/**
- * Receive one newline-terminated response from the server.
- *
- * Args:
- *     client_socket: Connected socket used to receive the response.
- *     response: String populated with the complete response.
- *
- * Returns:
- *     True if a complete response was received, otherwise false.
- */
-bool receive_response(
-    Socket& client_socket,
-    std::string& response
-)
-{
-    std::string receive_buffer;
-
-    while (true)
-    {
-        std::size_t newline_position = receive_buffer.find('\n');
-
-        if (newline_position != std::string::npos)
-        {
-            response = receive_buffer.substr(0, newline_position);
-            return true;
-        }
-
-        char buffer[1024]{};
-
-        int received_bytes = recv(
-            client_socket.get(),
-            buffer,
-            static_cast<int>(sizeof(buffer)),
-            0
-        );
-
-        if (received_bytes == SOCKET_ERROR)
-        {
-            std::cerr << "recv() failed with error: "
-                      << WSAGetLastError()
-                      << '\n';
-
-            return false;
-        }
-
-        if (received_bytes == 0)
-        {
-            std::cerr << "Server closed the connection before sending a complete response.\n";
-            return false;
-        }
-
-        receive_buffer.append(
-            buffer,
-            static_cast<std::size_t>(received_bytes)
-        );
-    }
-}
-
-
-/**
- * Send a protocol message and receive the server response.
- *
- * Args:
- *     client_socket: Connected socket used for the exchange.
- *     message: Protocol message to send.
- *
- * Returns:
- *     The server response when the exchange succeeds, otherwise no value.
- */
-std::optional<std::string> exchange_message(
-    Socket& client_socket,
-    const std::string& message
-)
-{
-    if (!send_message(client_socket, message))
-    {
         return std::nullopt;
     }
 
-    std::string response;
+    const auto cpu = system_metrics::get_cpu_percent();
+    const auto ram = system_metrics::get_ram_percent();
+    const auto disk = system_metrics::get_disk_free_percent();
+    const auto robot = robot_status::is_robot_running();
+    const auto uptime = system_metrics::get_uptime_seconds();
 
-    if (!receive_response(client_socket, response))
+    if (
+        !cpu.has_value() ||
+        !ram.has_value() ||
+        !disk.has_value() ||
+        !robot.has_value()
+    )
     {
+        std::cerr << "Could not collect machine measurements.\n";
+
         return std::nullopt;
     }
 
-    std::cout << "Received response: " << response << '\n';
+    std::ostringstream payload;
 
-    return response;
+    payload.imbue(std::locale::classic());
+
+    payload << std::fixed
+            << std::setprecision(6)
+            << std::boolalpha
+            << "{"
+            << "\"hostname\":\"" << hostname << "\","
+            << "\"cpu_percent\":" << cpu.value() << ","
+            << "\"ram_percent\":" << ram.value() << ","
+            << "\"disk_free_percent\":" << disk.value() << ","
+            << "\"robot_running\":" << robot.value() << ","
+            << "\"uptime_seconds\":" << uptime
+            << "}";
+
+    return payload.str();
 }
 
 
 /**
- * Create the protocol message requested by the server.
- *
- * Args:
- *     command: Protocol command requested by the server.
+ * Collect and publish a single machine report.
  *
  * Returns:
- *     The complete protocol message when the requested value can be
- *     obtained, otherwise no value.
+ *     0 on successful publication, otherwise 1.
  */
-std::optional<std::string> create_requested_message(
-    const std::string& command
-)
+int main()
 {
-    if (command == "CPU")
-    {
-        std::optional<double> cpu_percent =
-            system_metrics::get_cpu_percent();
+    const auto settings = load_connection_settings();
 
-        if (!cpu_percent.has_value())
-        {
-            std::cerr << "Could not measure CPU usage.\n";
-            return std::nullopt;
-        }
-
-        std::cout << "CPU usage: "
-                  << cpu_percent.value()
-                  << "%\n";
-
-        return "CPU "
-            + std::to_string(cpu_percent.value())
-            + "\n";
-    }
-
-    if (command == "RAM")
-    {
-        std::optional<double> ram_percent =
-            system_metrics::get_ram_percent();
-
-        if (!ram_percent.has_value())
-        {
-            std::cerr << "Could not measure RAM usage.\n";
-            return std::nullopt;
-        }
-
-        std::cout << "RAM usage: "
-                  << ram_percent.value()
-                  << "%\n";
-
-        return "RAM "
-            + std::to_string(ram_percent.value())
-            + "\n";
-    }
-
-    if (command == "DISK_FREE")
-    {
-        std::optional<double> disk_free_percent =
-            system_metrics::get_disk_free_percent();
-
-        if (!disk_free_percent.has_value())
-        {
-            std::cerr << "Could not measure free disk space.\n";
-            return std::nullopt;
-        }
-
-        std::cout << "Disk free: "
-                  << disk_free_percent.value()
-                  << "%\n";
-
-        return "DISK_FREE "
-            + std::to_string(disk_free_percent.value())
-            + "\n";
-    }
-
-    if (command == "ROBOT_RUNNING")
-    {
-        std::optional<bool> robot_running =
-            robot_status::is_robot_running();
-
-        if (!robot_running.has_value())
-        {
-            std::cerr
-                << "Failed to determine whether a robot is running.\n";
-
-            return std::nullopt;
-        }
-
-        return "ROBOT_RUNNING "
-            + std::string(
-                robot_running.value()
-                    ? "true"
-                    : "false"
-            )
-            + "\n";
-    }
-
-    if (command == "UPTIME")
-    {
-        unsigned long long uptime_seconds =
-            system_metrics::get_uptime_seconds();
-
-        std::cout << "Uptime: "
-                  << uptime_seconds
-                  << " seconds\n";
-
-        return "UPTIME "
-            + std::to_string(uptime_seconds)
-            + "\n";
-    }
-
-    if (command == "DONE")
-    {
-        return "DONE\n";
-    }
-
-    std::cerr
-        << "Server requested unsupported command: "
-        << command
-        << '\n';
-
-    return std::nullopt;
-}
-
-
-
-/**
- * Run the TCP client conversation.
- *
- * Returns:
- *     0 when the protocol conversation completes successfully, otherwise 1.
- */
-int run_client()
-{
-    Socket client_socket = create_client_socket();
-
-    if (!client_socket.is_valid())
-    {
-        return 1;
-    }
-
-    if (!connect_to_server(client_socket))
-    {
-        return 1;
-    }
-
-    std::cout << "Connected to server.\n";
-
-    std::string hostname = get_hostname();
+    const std::string hostname = get_hostname();
 
     if (hostname.empty())
     {
         return 1;
     }
 
-    std::optional<std::string> response = exchange_message(
-        client_socket,
-        "HELLO " + hostname + "\n"
-    );
+    const auto payload = collect_measurements(hostname);
 
-    if (!response.has_value())
+    if (!payload.has_value())
     {
         return 1;
     }
 
-    while (true)
-    {
-        if (response.value() == "OK COMPLETE")
-        {
-            return 0;
-        }
+    const std::string topic =
+        "rpa/machines/" + hostname + "/measurements";
 
-        if (response.value().rfind("OK ", 0) != 0)
-        {
-            std::cerr
-                << "Server rejected protocol message: "
-                << response.value()
-                << '\n';
-
-            return 1;
-        }
-
-        std::string requested_command =
-            response.value().substr(3);
-
-        std::optional<std::string> message =
-            create_requested_message(requested_command);
-
-        if (!message.has_value())
-        {
-            return 1;
-        }
-
-        response = exchange_message(
-            client_socket,
-            message.value()
-        );
-
-        if (!response.has_value())
-        {
-            return 1;
-        }
-    }
-}
-
-/**
- * Initialize networking and run the client.
- *
- * Returns:
- *     0 on success, otherwise 1.
- */
-int main()
-{
-    WinsockSession winsock;
-
-    if (!winsock.is_valid())
+    if (!mqtt::publish(settings, topic, payload.value()))
     {
         return 1;
     }
 
-    return run_client();
+    return 0;
 }

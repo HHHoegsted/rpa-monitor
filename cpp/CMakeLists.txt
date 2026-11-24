@@ -3,13 +3,14 @@ cmake_minimum_required(VERSION 3.20)
 project(rpa-monitor LANGUAGES CXX)
 
 find_package(libpqxx CONFIG REQUIRED)
+find_package(unofficial-mosquitto CONFIG REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 
-# Shared networking library
+# Shared networking library (TCP collector only)
 
 add_library(
     monitor_network STATIC
@@ -53,7 +54,7 @@ target_link_libraries(
 )
 
 
-# Windows monitoring client
+# Windows MQTT monitoring client
 
 if(WIN32)
     add_executable(
@@ -61,12 +62,13 @@ if(WIN32)
         monitor/client.cpp
         monitor/metrics/system_metrics.cpp
         monitor/metrics/robot_status.cpp
+        monitor/mqtt/publisher.cpp
     )
 
     target_link_libraries(
         client
         PRIVATE
-        monitor_network
+        unofficial::mosquitto::mosquitto
         WbemUuid
         Ole32
         OleAut32
