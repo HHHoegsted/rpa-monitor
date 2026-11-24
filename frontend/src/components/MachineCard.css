@@ -2,13 +2,35 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 20px;
-    border-left: 10px dotted var(--status-unknown);
+    border-left: 10px solid var(--status-unknown);
+    overflow: hidden;
+}
 
+.machine-card--reporting {
+    border-left-color: var(--status-reporting);
+}
+
+.machine-card--stale,
+.machine-card--unknown {
+    border-left-color: var(--status-stale);
+}
+
+.machine-summary {
+    position: relative;
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) 4fr;
+    grid-template-columns: minmax(150px, 1fr) 4fr auto;
     align-items: center;
     gap: 24px;
+    padding: 20px;
+    transition: background-color 150ms ease;
+}
+
+.machine-summary:hover {
+    background-color: color-mix(
+        in srgb,
+        var(--primary) 4%,
+        transparent
+    );
 }
 
 .machine-card h3 {
@@ -20,18 +42,6 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.5fr);
     gap: 16px;
-}
-
-.machine-card--reporting {
-    border-left: 10px solid var(--status-reporting);
-}
-
-.machine-card--stale {
-    border-left: 10px solid var(--status-stale);
-}
-
-.machine-card--unknown {
-    border-left: var(--status-band-width) solid var(--status-stale);
 }
 
 .machine-identity {
@@ -46,10 +56,111 @@
     font-variant-numeric: tabular-nums;
 }
 
+.machine-history-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.machine-history-toggle::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+}
+
+.machine-history-toggle:focus-visible {
+    outline: none;
+}
+
+.machine-history-toggle:focus-visible::after {
+    outline: 2px solid var(--primary);
+    outline-offset: -3px;
+}
+
+.machine-history-chevron {
+    transition: transform 150ms ease;
+}
+
+.machine-history-toggle[aria-expanded="true"] .machine-history-chevron {
+    transform: rotate(180deg);
+}
+
+.machine-history {
+    min-width: 0;
+    margin: 0 20px 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+
+.machine-history h4 {
+    margin: 0 0 16px;
+    color: var(--primary);
+}
+
+.machine-history-chart {
+    position: relative;
+    width: 100%;
+    height: 280px;
+    max-width: 100%;
+}
+
+.machine-history p {
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.machine-history-peaks {
+    margin-top: 24px;
+}
+
+.machine-history-peaks table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.machine-history-peaks th,
+.machine-history-peaks td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.machine-history-peaks th {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.machine-history-peaks td:last-child,
+.machine-history-peaks th:last-child {
+    text-align: right;
+}
+
+.machine-history-peaks tbody tr:last-child td {
+    border-bottom: none;
+}
+
 @media (max-width: 900px) {
-    .machine-card {
-        grid-template-columns: 1fr;
+    .machine-summary {
+        grid-template-columns: 1fr auto;
         gap: 16px;
+    }
+
+    .machine-metrics {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .machine-history-toggle {
+        grid-column: 2;
+        grid-row: 1;
     }
 }
 

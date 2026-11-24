@@ -30,6 +30,7 @@ def health() -> dict[str, str]:
     """
     return {"status": "ok"}
 
+
 @app.get("/machines")
 def get_machines() -> list[dict[str, int | str]]:
     """
@@ -49,37 +50,59 @@ def get_machines() -> list[dict[str, int | str]]:
         for row in rows
     ]
 
+
 @app.get("/machines/{machine_id}/measurements")
 def get_machine_measurements(
     machine_id: int,
-) -> list[dict[str, int | float | bool | str]]:
+) -> list[dict[str, int | float | bool | str | None]]:
     """
-    Retrieve the 100 most recent measurements for a machine.
+    Retrieve the 100 most recent measurements for a machine,
+    including their CPU usage rankings.
 
     Args:
         machine_id: Database ID of the machine.
 
     Returns:
-        list[dict[str, int | float | bool | str]]:
-            Measurements ordered from newest to oldest.
-            Returns an empty list when no measurements exist.
+        list[dict[str, int | float | bool | str | None]]:
+            Measurements ordered from newest to oldest,
+            including CPU usage rank within the retrieved history.
     """
     with get_database_connection() as connection:
         rows = connection.execute(
             """
+            WITH recent_measurements AS (
+                SELECT
+                    id,
+                    machine_id,
+                    recorded_at,
+                    cpu_percent,
+                    ram_percent,
+                    disk_free_percent,
+                    robot_running,
+                    uptime_seconds
+                FROM measurements
+                WHERE machine_id = %s
+                ORDER BY recorded_at DESC, id DESC
+                LIMIT 100
+            )
             SELECT
-                r.id,
-                r.recorded_at,
-                r.cpu_percent,
-                r.ram_percent,
-                r.disk_free_percent,
-                r.robot_running,
-                r.uptime_seconds
-            FROM measurements AS r
-            JOIN machines AS m ON m.id = r.machine_id
-            WHERE m.id = %s
-            ORDER BY r.recorded_at DESC, r.id DESC
-            LIMIT 100
+                id,
+                recorded_at,
+                cpu_percent,
+                ram_percent,
+                disk_free_percent,
+                robot_running,
+                uptime_seconds,
+                CASE
+                    WHEN cpu_percent IS NOT NULL THEN
+                        RANK() OVER (
+                            PARTITION BY machine_id
+                            ORDER BY cpu_percent DESC NULLS LAST
+                        )
+                    ELSE NULL
+                END AS cpu_rank
+            FROM recent_measurements
+            ORDER BY recorded_at DESC, id DESC
             """,
             (machine_id,),
         ).fetchall()
@@ -93,9 +116,11 @@ def get_machine_measurements(
             "disk_free_percent": row[4],
             "robot_running": row[5],
             "uptime_seconds": row[6],
+            "cpu_rank": row[7],
         }
         for row in rows
     ]
+
 
 @app.get("/machines/latest")
 def get_latest_machine_statuses() -> list[dict[str, int | float | bool | str | None]]:
