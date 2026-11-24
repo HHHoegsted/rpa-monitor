@@ -9,11 +9,35 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 
+# Shared networking library
+
+add_library(
+    monitor_network STATIC
+    monitor/network/socket.cpp
+    monitor/network/socket_platform.cpp
+    monitor/network/network_session.cpp
+)
+
+if(WIN32)
+    target_sources(
+        monitor_network
+        PRIVATE
+        monitor/network/winsock_session.cpp
+    )
+
+    target_link_libraries(
+        monitor_network
+        PUBLIC
+        Ws2_32
+    )
+endif()
+
+
+# Cross-platform monitoring server
+
 add_executable(
     server
     monitor/server.cpp
-    monitor/network/socket.cpp
-    monitor/network/winsock_session.cpp
     monitor/protocol/message.cpp
     monitor/protocol/dispatcher.cpp
     monitor/protocol/protocol_state_machine.cpp
@@ -24,25 +48,27 @@ add_executable(
 target_link_libraries(
     server
     PRIVATE
-    Ws2_32
+    monitor_network
     libpqxx::pqxx
 )
 
 
-add_executable(
-    client
-    monitor/client.cpp
-    monitor/network/socket.cpp
-    monitor/network/winsock_session.cpp
-    monitor/metrics/system_metrics.cpp
-    monitor/metrics/robot_status.cpp
-)
+# Windows monitoring client
 
-target_link_libraries(
-    client
-    PRIVATE
-    Ws2_32
-    WbemUuid
-    Ole32
-    OleAut32
-)
+if(WIN32)
+    add_executable(
+        client
+        monitor/client.cpp
+        monitor/metrics/system_metrics.cpp
+        monitor/metrics/robot_status.cpp
+    )
+
+    target_link_libraries(
+        client
+        PRIVATE
+        monitor_network
+        WbemUuid
+        Ole32
+        OleAut32
+    )
+endif()

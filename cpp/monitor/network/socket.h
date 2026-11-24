@@ -1,12 +1,12 @@
 #pragma once
 
-#include <winsock2.h>
+#include "socket_platform.h"
 
 
 class Socket
 {
 public:
-    explicit Socket(SOCKET socket_handle);
+    explicit Socket(SocketHandle socket_handle);
 
     ~Socket();
 
@@ -16,10 +16,10 @@ public:
     Socket(Socket&& other) noexcept;
     Socket& operator=(Socket&& other) noexcept;
 
-    SOCKET get() const;
+    SocketHandle get() const;
 
     bool is_valid() const;
 
 private:
-    SOCKET socket_handle_;
+    SocketHandle socket_handle_;
 };

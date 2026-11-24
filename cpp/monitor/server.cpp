@@ -1,20 +1,18 @@
 #include <iostream>
 #include <string>
-#include <winsock2.h>
+#include <exception>
+
+#include <pqxx/pqxx>
 
 #include "network/socket.h"
-#include "network/winsock_session.h"
+#include "network/socket_platform.h"
+#include "network/network_session.h"
 #include "protocol/receive_result.h"
 #include "protocol/message.h"
 #include "protocol/dispatcher.h"
 #include "protocol/protocol_state.h"
 #include "models/machine_report.h"
 #include "database/report_repository.h"
-#include <pqxx/pqxx>
-#include <exception>
-
-
-#pragma comment(lib, "Ws2_32.lib")
 
 
 /**
@@ -25,16 +23,16 @@
  */
 Socket create_server_socket()
 {
-    SOCKET socket_handle = socket(
+    SocketHandle socket_handle = socket(
         AF_INET,
         SOCK_STREAM,
         IPPROTO_TCP
     );
 
-    if (socket_handle == INVALID_SOCKET)
+    if (socket_handle == INVALID_SOCKET_HANDLE)
     {
         std::cerr << "socket() failed with error: "
-                  << WSAGetLastError()
+                  << get_socket_error()
                   << '\n';
     }
 
@@ -43,7 +41,7 @@ Socket create_server_socket()
 
 
 /**
- * Bind the server socket to localhost on port 5000.
+ * Bind the server socket to all IPv4 interfaces on port 5000.
  *
  * Args:
  *     server_socket: Socket to bind.
@@ -56,7 +54,7 @@ bool bind_server_socket(Socket& server_socket)
     sockaddr_in server_address{};
 
     server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    server_address.sin_addr.s_addr = htonl(INADDR_ANY);
     server_address.sin_port = htons(5000);
 
     int bind_result = bind(
@@ -65,10 +63,10 @@ bool bind_server_socket(Socket& server_socket)
         sizeof(server_address)
     );
 
-    if (bind_result == SOCKET_ERROR)
+    if (bind_result == SOCKET_OPERATION_ERROR)
     {
         std::cerr << "bind() failed with error: "
-                  << WSAGetLastError()
+                  << get_socket_error()
                   << '\n';
 
         return false;
@@ -94,10 +92,10 @@ bool listen_for_connections(Socket& server_socket)
         SOMAXCONN
     );
 
-    if (listen_result == SOCKET_ERROR)
+    if (listen_result == SOCKET_OPERATION_ERROR)
     {
         std::cerr << "listen() failed with error: "
-                  << WSAGetLastError()
+                  << get_socket_error()
                   << '\n';
 
         return false;
@@ -118,16 +116,16 @@ bool listen_for_connections(Socket& server_socket)
  */
 Socket accept_client(Socket& server_socket)
 {
-    SOCKET client_handle = accept(
+    SocketHandle client_handle = accept(
         server_socket.get(),
         nullptr,
         nullptr
     );
 
-    if (client_handle == INVALID_SOCKET)
+    if (client_handle == INVALID_SOCKET_HANDLE)
     {
         std::cerr << "accept() failed with error: "
-                  << WSAGetLastError()
+                  << get_socket_error()
                   << '\n';
     }
 
@@ -138,13 +136,12 @@ Socket accept_client(Socket& server_socket)
 /**
  * Receive one newline-terminated message from a connected client.
  *
- * Any bytes received after the first newline are kept in the receive buffer
- * for the next message. A carriage return immediately preceding the newline
- * is removed so both LF and CRLF line endings are accepted.
+ * Any bytes received after the first newline are retained in the
+ * receive buffer. Both LF and CRLF line endings are accepted.
  *
  * Args:
  *     client_socket: Connected client socket.
- *     receive_buffer: Buffered data received from the client but not yet consumed.
+ *     receive_buffer: Buffered data not yet consumed.
  *     message: String populated with one complete protocol message.
  *
  * Returns:
@@ -179,17 +176,17 @@ ReceiveResult receive_message(
 
         char buffer[1024]{};
 
-        int received_bytes = recv(
+        const auto received_bytes = recv(
             client_socket.get(),
             buffer,
             static_cast<int>(sizeof(buffer)),
             0
         );
 
-        if (received_bytes == SOCKET_ERROR)
+        if (received_bytes == SOCKET_OPERATION_ERROR)
         {
             std::cerr << "recv() failed with error: "
-                      << WSAGetLastError()
+                      << get_socket_error()
                       << '\n';
 
             return ReceiveResult::Error;
@@ -209,18 +206,7 @@ ReceiveResult receive_message(
 
 
 /**
- * Send one newline-terminated response through a connected client socket.
- *
- * Args:
- *     client_socket: Connected client socket.
- *     response: Response to send.
- *
- * Returns:
- *     True if sending succeeds, otherwise false.
- */
-
-/**
- * Send one complete newline-terminated response through a client socket.
+ * Send one complete newline-terminated protocol response.
  *
  * Args:
  *     client_socket: Connected socket used to send the response.
@@ -239,17 +225,17 @@ bool send_response(
 
     while (total_sent < framed_response.size())
     {
-        int sent_bytes = send(
+        const auto sent_bytes = send(
             client_socket.get(),
             framed_response.c_str() + total_sent,
             static_cast<int>(framed_response.size() - total_sent),
-            0
+            SOCKET_SEND_FLAGS
         );
 
-        if (sent_bytes == SOCKET_ERROR)
+        if (sent_bytes == SOCKET_OPERATION_ERROR)
         {
             std::cerr << "send() failed with error: "
-                      << WSAGetLastError()
+                      << get_socket_error()
                       << '\n';
 
             return false;
@@ -268,8 +254,6 @@ bool send_response(
 
     return true;
 }
-
-
 
 
 /**
@@ -309,7 +293,9 @@ bool handle_client(
         {
             if (state != ProtocolState::COMPLETE)
             {
-                std::cerr << "Client closed the connection before completing the protocol.\n";
+                std::cerr
+                    << "Client closed the connection before completing the protocol.\n";
+
                 return false;
             }
 
@@ -360,8 +346,6 @@ bool handle_client(
 }
 
 
-
-
 /**
  * Verify that the PostgreSQL database is accessible.
  *
@@ -395,9 +379,8 @@ bool verify_database_connection()
 }
 
 
-
 /**
- * Starts the server and handles clients sequentially.
+ * Start the server and handle client connections sequentially.
  *
  * Returns:
  *     0 if the server exits successfully, otherwise 1.
@@ -423,7 +406,7 @@ int run_server()
 
     ProtocolDispatcher dispatcher;
 
-    std::cout << "Server listening on 127.0.0.1:5000...\n";
+    std::cout << "Server listening on 0.0.0.0:5000...\n";
 
     while (true)
     {
@@ -433,7 +416,9 @@ int run_server()
 
         if (!client_socket.is_valid())
         {
-            std::cerr << "Server could not accept client. Exiting.\n";
+            std::cerr
+                << "Server could not accept client. Exiting.\n";
+
             return 1;
         }
 
@@ -441,20 +426,22 @@ int run_server()
 
         if (!handle_client(client_socket, dispatcher))
         {
-            std::cerr << "Client conversation failed. Returning to accept().\n";
+            std::cerr
+                << "Client conversation failed. Returning to accept().\n";
+
             continue;
         }
 
-        std::cout << "Client conversation completed successfully.\n";
+        std::cout
+            << "Client conversation completed successfully.\n";
     }
 
     return 0;
 }
 
 
-
 /**
- * Initialize networking, verify database connectivity,
+ * Initialise networking, verify database connectivity,
  * and start the monitoring server.
  *
  * Returns:
@@ -462,9 +449,9 @@ int run_server()
  */
 int main()
 {
-    WinsockSession winsock;
+    NetworkSession network_session;
 
-    if (!winsock.is_valid())
+    if (!network_session.is_valid())
     {
         return 1;
     }
