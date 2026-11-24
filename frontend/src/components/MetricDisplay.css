@@ -1,0 +1,15 @@
+.metric-display {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.metric-display span {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.metric-display strong {
+    font-size: 1.2rem;
+    font-variant-numeric: tabular-nums;
+}
