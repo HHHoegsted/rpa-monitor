@@ -3,3 +3,6 @@ build/
 vcpkg_installed/
 api/.venv/
 __pycache__/
+
+# MQTT credentials and certificate material
+broker/secrets/

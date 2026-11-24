@@ -61,5 +61,79 @@ services:
     ports:
       - "127.0.0.1:5000:5000"
 
+  broker-init:
+    image: eclipse-mosquitto:2.0
+    restart: "no"
+    user: "0:0"
+    network_mode: none
+
+    environment:
+      MQTT_PUBLISHER_USERNAME: ${MQTT_PUBLISHER_USERNAME:?Publisher username required}
+      MQTT_PUBLISHER_PASSWORD: ${MQTT_PUBLISHER_PASSWORD:?Publisher password required}
+      MQTT_COLLECTOR_USERNAME: ${MQTT_COLLECTOR_USERNAME:?Collector username required}
+      MQTT_COLLECTOR_PASSWORD: ${MQTT_COLLECTOR_PASSWORD:?Collector password required}
+
+    volumes:
+      - ./broker/provision-passwords.sh:/provision-passwords.sh:ro
+      - ./broker/secrets/server.crt:/source/server.crt:ro
+      - ./broker/secrets/server.key:/source/server.key:ro
+      - ./broker/acl.conf:/source/acl.conf:ro
+      - broker_secrets:/provisioned
+      - broker_data:/broker-data
+
+    entrypoint: ["/bin/sh", "-ec"]
+
+    command:
+      - |
+        test -s /provision-passwords.sh
+        test -s /source/server.crt
+        test -s /source/server.key
+        test -s /source/acl.conf
+
+        sh /provision-passwords.sh
+
+        test -s /provisioned/passwords
+
+        cp /source/server.crt /provisioned/server.crt
+        cp /source/server.key /provisioned/server.key
+        cp /source/acl.conf /provisioned/acl.conf
+
+        chown 1883:1883 /provisioned
+        chown 1883:1883 /provisioned/server.crt
+        chown 1883:1883 /provisioned/server.key
+        chown 1883:1883 /provisioned/acl.conf
+
+        chmod 700 /provisioned
+        chmod 644 /provisioned/server.crt
+        chmod 600 /provisioned/server.key
+        chmod 600 /provisioned/acl.conf
+
+        chown 1883:1883 /broker-data
+        chmod 700 /broker-data
+
+        echo "Broker provisioning completed."
+
+  broker:
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    user: "1883:1883"
+
+    depends_on:
+      broker-init:
+        condition: service_completed_successfully
+
+    ports:
+      - "127.0.0.1:8883:8883"
+
+    volumes:
+      - ./broker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - broker_secrets:/mosquitto/config/secrets:ro
+      - broker_data:/mosquitto/data
+
+    entrypoint: ["mosquitto"]
+    command: ["-c", "/mosquitto/config/mosquitto.conf"]
+
 volumes:
   postgres_data:
+  broker_secrets:
+  broker_data:

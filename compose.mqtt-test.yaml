@@ -1,0 +1,42 @@
+services:
+  mqtt-test:
+    image: eclipse-mosquitto:2.0
+    user: "1883:1883"
+
+    environment:
+      MQTT_PUBLISHER_USERNAME: ${MQTT_PUBLISHER_USERNAME:?Publisher username required}
+      MQTT_PUBLISHER_PASSWORD: ${MQTT_PUBLISHER_PASSWORD:?Publisher password required}
+      MQTT_COLLECTOR_USERNAME: ${MQTT_COLLECTOR_USERNAME:?Collector username required}
+      MQTT_COLLECTOR_PASSWORD: ${MQTT_COLLECTOR_PASSWORD:?Collector password required}
+
+    volumes:
+      - ./broker/secrets/ca.crt:/tmp/ca.crt:ro
+
+    entrypoint: ["/bin/sh", "-ec"]
+
+    command:
+      - |
+        mosquitto_sub \
+            -h broker -p 8883 \
+            --cafile /tmp/ca.crt \
+            -u "$$MQTT_COLLECTOR_USERNAME" \
+            -P "$$MQTT_COLLECTOR_PASSWORD" \
+            -t 'rpa/machines/+/measurements' \
+            -q 1 -C 1 -W 20 -v &
+
+        SUBSCRIBER_PID=$$!
+
+        sleep 2
+
+        mosquitto_pub \
+            -h broker -p 8883 \
+            --cafile /tmp/ca.crt \
+            -u "$$MQTT_PUBLISHER_USERNAME" \
+            -P "$$MQTT_PUBLISHER_PASSWORD" \
+            -t 'rpa/machines/TEST/measurements' \
+            -q 1 \
+            -m '{"cpu_percent":42}'
+
+        wait "$$SUBSCRIBER_PID"
+
+        echo "MQTT communication test passed."
