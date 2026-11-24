@@ -1,8 +1,8 @@
-
 #pragma once
 
 #include <optional>
 #include <string>
+
 
 /**
  * Represents a machine health report collected from one client.
@@ -10,14 +10,6 @@
 class MachineReport
 {
 public:
-    /**
-     * Create a complete diagnostic machine report.
-     *
-     * Returns:
-     *     A complete report containing deterministic diagnostic values.
-     */
-    static MachineReport create_diagnostic();
-
     /**
      * Set the hostname reported by the client.
      *
@@ -152,14 +144,6 @@ public:
      */
     bool is_complete() const;
 
-    /**
-     * Check whether this is the reserved diagnostic report.
-     *
-     * Returns:
-     *     True when the report represents DEEP-THOUGHT.
-     */
-    bool is_diagnostic() const;
-
 private:
     /**
      * Check whether a percentage is within the allowed range.
@@ -171,8 +155,6 @@ private:
      *     True when between 0.0 and 100.0 inclusive.
      */
     static bool is_valid_percentage(double value);
-
-    static constexpr const char* diagnostic_hostname_ = "DEEP-THOUGHT";
 
     std::optional<std::string> hostname_;
     std::optional<double> cpu_percent_;

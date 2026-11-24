@@ -59,6 +59,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=build /build/server /usr/local/bin/server
 
-EXPOSE 5000
-
 CMD ["/usr/local/bin/server"]

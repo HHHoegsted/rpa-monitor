@@ -1,7 +1,8 @@
 {
     "dependencies": [
         "libpqxx",
-        "mosquitto"
+        "mosquitto",
+        "nlohmann-json"
     ],
     "overrides": [
         {

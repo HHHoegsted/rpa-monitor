@@ -1,25 +1,5 @@
-
 #include "machine_report.h"
 
-/**
- * Create a complete diagnostic machine report.
- *
- * Returns:
- *     A complete report containing deterministic diagnostic values.
- */
-MachineReport MachineReport::create_diagnostic()
-{
-    MachineReport report;
-
-    report.hostname_ = diagnostic_hostname_;
-    report.cpu_percent_ = 42.0;
-    report.ram_percent_ = 42.0;
-    report.disk_free_percent_ = 42.0;
-    report.robot_running_ = false;
-    report.uptime_seconds_ = 1000ULL;
-
-    return report;
-}
 
 /**
  * Set the hostname reported by the client.
@@ -37,15 +17,11 @@ bool MachineReport::set_hostname(const std::string& hostname)
         return false;
     }
 
-    if (hostname == diagnostic_hostname_)
-    {
-        return false;
-    }
-
     hostname_ = hostname;
 
     return true;
 }
+
 
 /**
  * Set the reported CPU usage percentage.
@@ -68,6 +44,7 @@ bool MachineReport::set_cpu_percent(double cpu_percent)
     return true;
 }
 
+
 /**
  * Set the reported RAM usage percentage.
  *
@@ -88,6 +65,7 @@ bool MachineReport::set_ram_percent(double ram_percent)
 
     return true;
 }
+
 
 /**
  * Set the reported free disk percentage.
@@ -110,6 +88,7 @@ bool MachineReport::set_disk_free_percent(double disk_free_percent)
     return true;
 }
 
+
 /**
  * Set whether a robot is currently running.
  *
@@ -120,6 +99,7 @@ void MachineReport::set_robot_running(bool robot_running)
 {
     robot_running_ = robot_running;
 }
+
 
 /**
  * Set the reported system uptime.
@@ -133,6 +113,7 @@ void MachineReport::set_uptime_seconds(
 {
     uptime_seconds_ = uptime_seconds;
 }
+
 
 /**
  * Get the hostname of the reporting machine.
@@ -148,6 +129,7 @@ const std::string& MachineReport::hostname() const
     return hostname_.value();
 }
 
+
 /**
  * Get the CPU usage percentage.
  *
@@ -161,6 +143,7 @@ double MachineReport::cpu_percent() const
 {
     return cpu_percent_.value();
 }
+
 
 /**
  * Get the RAM usage percentage.
@@ -176,6 +159,7 @@ double MachineReport::ram_percent() const
     return ram_percent_.value();
 }
 
+
 /**
  * Get the free disk space percentage.
  *
@@ -189,6 +173,7 @@ double MachineReport::disk_free_percent() const
 {
     return disk_free_percent_.value();
 }
+
 
 /**
  * Get whether a robot is running.
@@ -204,6 +189,7 @@ bool MachineReport::robot_running() const
     return robot_running_.value();
 }
 
+
 /**
  * Get the system uptime.
  *
@@ -217,6 +203,7 @@ unsigned long long MachineReport::uptime_seconds() const
 {
     return uptime_seconds_.value();
 }
+
 
 /**
  * Check whether all required report values have been provided.
@@ -234,20 +221,9 @@ bool MachineReport::is_complete() const
         && uptime_seconds_.has_value();
 }
 
-/**
- * Check whether this is the reserved diagnostic report.
- *
- * Returns:
- *     True when the report represents DEEP-THOUGHT.
- */
-bool MachineReport::is_diagnostic() const
-{
-    return hostname_.has_value()
-        && hostname_.value() == diagnostic_hostname_;
-}
 
 /**
- * Check whether a percentage value is within the allowed range.
+ * Check whether a percentage is within the allowed range.
  *
  * Args:
  *     value: Percentage value to validate.

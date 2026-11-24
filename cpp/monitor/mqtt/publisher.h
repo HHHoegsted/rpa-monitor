@@ -2,19 +2,11 @@
 
 #include <string>
 
+#include "connection_settings.h"
+
 
 namespace mqtt
 {
-    struct ConnectionSettings
-    {
-        std::string host;
-        int port = 8883;
-        std::string username;
-        std::string password;
-        std::string ca_file;
-    };
-
-
     /**
      * Publish a single message over an authenticated TLS connection.
      *

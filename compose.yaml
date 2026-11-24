@@ -50,6 +50,7 @@ services:
 
     depends_on:
       - db
+      - broker
 
     environment:
       PGHOST: db
@@ -58,8 +59,13 @@ services:
       PGUSER: monitor_writer
       PGPASSWORD: ${MONITOR_WRITER_PASSWORD:?Writer password required}
 
-    ports:
-      - "127.0.0.1:5000:5000"
+      MQTT_HOST: broker
+      MQTT_COLLECTOR_USERNAME: ${MQTT_COLLECTOR_USERNAME:?Collector username required}
+      MQTT_COLLECTOR_PASSWORD: ${MQTT_COLLECTOR_PASSWORD:?Collector password required}
+      MQTT_CA_FILE: /certificates/ca.crt
+
+    volumes:
+      - ./broker/secrets/ca.crt:/certificates/ca.crt:ro
 
   broker-init:
     image: eclipse-mosquitto:2.0

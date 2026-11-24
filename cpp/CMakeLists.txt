@@ -4,44 +4,34 @@ project(rpa-monitor LANGUAGES CXX)
 
 find_package(libpqxx CONFIG REQUIRED)
 find_package(unofficial-mosquitto CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 
-# Shared networking library (TCP collector only)
+# Shared MQTT client infrastructure
 
 add_library(
-    monitor_network STATIC
-    monitor/network/socket.cpp
-    monitor/network/socket_platform.cpp
-    monitor/network/network_session.cpp
+    monitor_mqtt STATIC
+    monitor/mqtt/client_session.cpp
 )
 
-if(WIN32)
-    target_sources(
-        monitor_network
-        PRIVATE
-        monitor/network/winsock_session.cpp
-    )
-
-    target_link_libraries(
-        monitor_network
-        PUBLIC
-        Ws2_32
-    )
-endif()
+target_link_libraries(
+    monitor_mqtt
+    PUBLIC
+    unofficial::mosquitto::mosquitto
+)
 
 
-# Cross-platform monitoring server
+# Cross-platform MQTT collector
 
 add_executable(
     server
     monitor/server.cpp
-    monitor/protocol/message.cpp
-    monitor/protocol/dispatcher.cpp
-    monitor/protocol/protocol_state_machine.cpp
+    monitor/mqtt/subscriber.cpp
+    monitor/mqtt/report_parser.cpp
     monitor/models/machine_report.cpp
     monitor/database/report_repository.cpp
 )
@@ -49,8 +39,9 @@ add_executable(
 target_link_libraries(
     server
     PRIVATE
-    monitor_network
+    monitor_mqtt
     libpqxx::pqxx
+    nlohmann_json::nlohmann_json
 )
 
 
@@ -68,7 +59,7 @@ if(WIN32)
     target_link_libraries(
         client
         PRIVATE
-        unofficial::mosquitto::mosquitto
+        monitor_mqtt
         WbemUuid
         Ole32
         OleAut32

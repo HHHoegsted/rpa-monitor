@@ -1,12 +1,12 @@
 #include "publisher.h"
+#include "library_session.h"
+#include "client_session.h"
 
-#include <mosquitto.h>
 #include <mqtt_protocol.h>
 
 #include <chrono>
 #include <iostream>
 #include <limits>
-#include <memory>
 #include <optional>
 
 
@@ -16,38 +16,6 @@ namespace
     constexpr int LOOP_TIMEOUT_MS = 100;
 
     constexpr auto ACK_TIMEOUT = std::chrono::seconds(10);
-
-
-    /**
-     * Manage the lifetime of the libmosquitto library.
-     */
-    class LibrarySession
-    {
-    public:
-        LibrarySession()
-            : result_(mosquitto_lib_init())
-        {
-        }
-
-        ~LibrarySession()
-        {
-            if (is_valid())
-            {
-                mosquitto_lib_cleanup();
-            }
-        }
-
-        LibrarySession(const LibrarySession&) = delete;
-        LibrarySession& operator=(const LibrarySession&) = delete;
-
-        bool is_valid() const noexcept
-        {
-            return result_ == MOSQ_ERR_SUCCESS;
-        }
-
-    private:
-        int result_;
-    };
 
 
     struct PublishState
@@ -105,35 +73,6 @@ namespace
 
 
     /**
-     * Check a libmosquitto operation result.
-     *
-     * Args:
-     *     result: Result returned by libmosquitto.
-     *     operation: Description of the attempted operation.
-     *
-     * Returns:
-     *     True if the operation succeeded, otherwise false.
-     */
-    bool check_result(
-        int result,
-        const char* operation
-    )
-    {
-        if (result == MOSQ_ERR_SUCCESS)
-        {
-            return true;
-        }
-
-        std::cerr << operation
-                  << " failed: "
-                  << mosquitto_strerror(result)
-                  << '\n';
-
-        return false;
-    }
-
-
-    /**
      * Process MQTT network events until an acknowledgement arrives.
      *
      * Args:
@@ -161,7 +100,7 @@ namespace
                 return false;
             }
 
-            if (!check_result(
+            if (!mqtt::check_result(
                 mosquitto_loop(client, LOOP_TIMEOUT_MS, 1),
                 "MQTT network loop"
             ))
@@ -194,19 +133,13 @@ bool mqtt::publish(
 )
 {
     if (
-        settings.host.empty() ||
-        settings.username.empty() ||
-        settings.password.empty() ||
-        settings.ca_file.empty() ||
-        settings.port < 1 ||
-        settings.port > 65535 ||
         topic.empty() ||
         payload.size() > static_cast<std::size_t>(
             (std::numeric_limits<int>::max)()
         )
     )
     {
-        std::cerr << "Invalid MQTT publication settings.\n";
+        std::cerr << "Invalid MQTT publication data.\n";
 
         return false;
     }
@@ -222,64 +155,14 @@ bool mqtt::publish(
 
     PublishState state;
 
-    std::unique_ptr<
-        struct mosquitto,
-        decltype(&mosquitto_destroy)
-    > client(
-        mosquitto_new(nullptr, true, &state),
-        &mosquitto_destroy
+    ClientSession client(
+        settings,
+        nullptr,
+        true,
+        &state
     );
 
-    if (!client)
-    {
-        std::cerr << "Could not create MQTT client.\n";
-
-        return false;
-    }
-
-    if (!check_result(
-        mosquitto_int_option(
-            client.get(),
-            MOSQ_OPT_PROTOCOL_VERSION,
-            MQTT_PROTOCOL_V5
-        ),
-        "MQTT protocol configuration"
-    ))
-    {
-        return false;
-    }
-
-    if (!check_result(
-        mosquitto_username_pw_set(
-            client.get(),
-            settings.username.c_str(),
-            settings.password.c_str()
-        ),
-        "MQTT authentication configuration"
-    ))
-    {
-        return false;
-    }
-
-    if (!check_result(
-        mosquitto_tls_set(
-            client.get(),
-            settings.ca_file.c_str(),
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr
-        ),
-        "MQTT TLS configuration"
-    ))
-    {
-        return false;
-    }
-
-    if (!check_result(
-        mosquitto_tls_insecure_set(client.get(), false),
-        "MQTT hostname verification configuration"
-    ))
+    if (!client.is_valid())
     {
         return false;
     }
